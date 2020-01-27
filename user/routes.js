@@ -1,6 +1,7 @@
 const express = require("express");
 const usersTbl = require("./controllers");
 const mw = require("./middlewares");
+const bcryptjs = require("bcryptjs");
 const router = express.Router();
 
 // | POST   | /api/register | Creates a `user` using the information sent inside the `body` of the request. **Hash the password** before saving the user to the database.                                                                                                                                                         |
@@ -9,6 +10,7 @@ const router = express.Router();
 
 router.post("/register", mw.validateUser, async (req, res) => {
   try {
+    req.body.password = bcryptjs.hashSync(req.body.password);
     const isCreated = await usersTbl.create(req.body);
     res.status(200).json({ message: "Account has been created" });
   } catch {
@@ -16,11 +18,33 @@ router.post("/register", mw.validateUser, async (req, res) => {
   }
 });
 
-router.post("/login", (req, res) => {});
+router.post("/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const [user] = await usersTbl.findBy(username);
+    const isAuthenticated = bcryptjs.compareSync(password, user.password);
+    if (isAuthenticated) {
+      res.cookie("token", "pass", {
+        maxAge: 900000,
+        httpOnly: true
+      });
+      res.status(200).json({ message: "login success" });
+    } else {
+      res.status(200).json({ message: "login fail" });
+    }
+  } catch {
+    res.status(500).json({ statusCode: 500, error: "Internal Server Error" });
+  }
+});
+
 router.get("/", async (req, res) => {
   try {
-    const users = await usersTbl.find();
-    res.status(200).json(users);
+    if (req.cookies.token === "pass") {
+      const users = await usersTbl.find();
+      res.status(200).json(users);
+    } else {
+      res.status(401).json({ message: "login first" });
+    }
   } catch {
     res.status(500).json({ statusCode: 500, error: "Internal Server Error" });
   }
