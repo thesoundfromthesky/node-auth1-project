@@ -24,10 +24,7 @@ router.post("/login", async (req, res) => {
     const [user] = await usersTbl.findBy(username);
     const isAuthenticated = bcryptjs.compareSync(password, user.password);
     if (isAuthenticated) {
-      res.cookie("token", "pass", {
-        maxAge: 900000,
-        httpOnly: true
-      });
+      req.session.username = user.username;
       res.status(200).json({ message: "login success" });
     } else {
       res.status(200).json({ message: "login fail" });
@@ -37,17 +34,33 @@ router.post("/login", async (req, res) => {
   }
 });
 
-router.get("/", async (req, res) => {
+router.get("/", authenticate, async (req, res) => {
   try {
-    if (req.cookies.token === "pass") {
-      const users = await usersTbl.find();
-      res.status(200).json(users);
-    } else {
-      res.status(401).json({ message: "login first" });
-    }
+    const users = await usersTbl.find();
+    res.status(200).json(users);
   } catch {
     res.status(500).json({ statusCode: 500, error: "Internal Server Error" });
   }
 });
 
+router.get("/logout", (req, res) => {
+  if (req.session) {
+    req.session.destroy(err => {
+      if (err) {
+        res.send("error logging out");
+      } else {
+        res.send("good bye");
+      }
+    });
+  }
+});
+
+function authenticate(req, res, next) {
+  if (req.session && req.session.username) {
+
+    next();
+  } else {
+    res.status(401).json({ message: "Login first" });
+  }
+}
 module.exports = router;
